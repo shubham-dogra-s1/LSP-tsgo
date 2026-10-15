@@ -193,6 +193,5 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
 
 def to_location(location: Location | LocationLink) -> Location:
     if 'targetUri' in location:
-        location = cast('LocationLink', location)
         return {'uri': location['targetUri'], 'range': location['targetSelectionRange']}
-    return cast('Location', location)
+    return location
