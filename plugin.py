@@ -15,7 +15,6 @@ from LSP.plugin.core.registry import get_position
 from LSP.plugin.core.views import get_symbol_kind_from_scope
 from LSP.plugin.core.views import text_document_position_params
 from LSP.plugin.locationpicker import LocationPicker
-from LSP.plugin.locationpicker import open_location_async
 from LSP.protocol import DocumentUri
 from LSP.protocol import Hover
 from LSP.protocol import HoverParams
@@ -194,9 +193,18 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         if not locations:
             self._fallback(fallback, side_by_side, force_group, group)
             return
-        self.view.run_command('add_jump_record', {'selection': [(r.a, r.b) for r in self.view.sel()]})
         if len(locations) == 1:
-            open_location_async(session, locations[0], side_by_side, force_group, group)
+            flags = sublime.NewFileFlags.NONE
+            if force_group:
+                flags |= sublime.NewFileFlags.FORCE_GROUP
+            if side_by_side:
+                flags |= sublime.NewFileFlags.ADD_TO_SELECTION | sublime.NewFileFlags.SEMI_TRANSIENT
+            session.window.run_command('lsp_open_location', {
+                'location': locations[0],
+                'session_name': session.config.name,
+                'flags': flags,
+                'group': group,
+            })
             return
         placeholder = 'Source definitions of ' + self.view.substr(self.view.word(position))
         kind = get_symbol_kind_from_scope(self.view.scope_name(position))
