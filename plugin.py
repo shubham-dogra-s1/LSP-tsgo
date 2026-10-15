@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from functools import partial
 from LSP.plugin import ClientRequest
-from LSP.plugin import LocationPicker
 from LSP.plugin import LspPlugin
 from LSP.plugin import LspTextCommand
 from LSP.plugin import OnPreStartContext
@@ -18,6 +17,7 @@ from LSP.protocol import Hover
 from LSP.protocol import HoverParams
 from LSP.protocol import Location
 from LSP.protocol import LocationLink
+from LSP.protocol import TextDocumentPositionParams
 from lsp_utils import NodeManager
 from pathlib import Path
 from sublime_lib import ResourcePath
@@ -147,22 +147,13 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
 
     capability = 'definitionProvider'
 
-    def run(
-        self,
-        _: sublime.Edit,
-        event: dict | None = None,
-        point: int | None = None,
-        side_by_side: bool = False,
-        force_group: bool = True,
-        group: int = -1,
-        fallback: bool = True,
-    ) -> None:
+    def run(self, _: sublime.Edit, event: dict | None = None, point: int | None = None, fallback: bool = True) -> None:
         if point is None and event and 'x' in event and 'y' in event:
             point = self.view.window_to_text((event['x'], event['y']))
         position = point if point is not None else next((r.b for r in self.view.sel()), None)
         session = self.best_session(SOURCE_DEFINITION_CAPABILITY, position)
         if session is None or position is None:
-            self._fallback(fallback, side_by_side, force_group, group)
+            self._fallback(fallback)
             return
         params = text_document_position_params(self.view, position)
         request: Request[Any, Location | list[Location] | list[LocationLink] | None] = Request(
@@ -170,52 +161,38 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         )
         session.send_request(
             request,
-            partial(self._on_result_async, session, side_by_side, force_group, group, position, fallback),
-            lambda _error: self._fallback(fallback, side_by_side, force_group, group),
+            partial(self._on_result_async, session, params, fallback),
+            lambda _error: self._fallback(fallback),
         )
 
     def _on_result_async(
         self,
         session: Session,
-        side_by_side: bool,
-        force_group: bool,
-        group: int,
-        position: int,
+        params: TextDocumentPositionParams,
         fallback: bool,
         response: Location | list[Location] | list[LocationLink] | None,
     ) -> None:
         if isinstance(response, dict):
-            locations: list[Location] | list[LocationLink] = [response]
-        elif isinstance(response, list):
-            locations = response
-        else:
-            locations = []
+            response = [response]
+        locations = [to_location(location) for location in response or []]
         if not locations:
-            self._fallback(fallback, side_by_side, force_group, group)
+            self._fallback(fallback)
             return
-        if len(locations) == 1:
-            flags = sublime.NewFileFlags.NONE
-            if force_group:
-                flags |= sublime.NewFileFlags.FORCE_GROUP
-            if side_by_side:
-                flags |= sublime.NewFileFlags.ADD_TO_SELECTION | sublime.NewFileFlags.SEMI_TRANSIENT
-            session.window.run_command('lsp_open_location', {
-                'location': locations[0],
-                'session_name': session.config.name,
-                'flags': flags,
-                'group': group,
-            })
-            return
-        placeholder = 'Source definitions of ' + self.view.substr(self.view.word(position))
-        sublime.set_timeout(
-            partial(LocationPicker, self.view, session, locations, side_by_side, force_group, group, placeholder)
-        )
+        # Handled by LSP itself: opens a single location directly, or shows the location picker.
+        session.execute_command({
+            'command': 'editor.action.showReferences',
+            'arguments': [params['textDocument']['uri'], params['position'], locations],
+        }, view=self.view)
 
-    def _fallback(self, fallback: bool, side_by_side: bool, force_group: bool, group: int) -> None:
+    def _fallback(self, fallback: bool) -> None:
         if not fallback:
             sublime.status_message('No source definition found')
             return
-        self.view.run_command(
-            'lsp_symbol_definition',
-            {'side_by_side': side_by_side, 'force_group': force_group, 'group': group, 'fallback': True},
-        )
+        self.view.run_command('lsp_symbol_definition', {'fallback': True})
+
+
+def to_location(location: Location | LocationLink) -> Location:
+    if 'targetUri' in location:
+        location = cast('LocationLink', location)
+        return {'uri': location['targetUri'], 'range': location['targetSelectionRange']}
+    return cast('Location', location)
