@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import partial
 from LSP.plugin import ClientRequest
+from LSP.plugin import LocationPicker
 from LSP.plugin import LspPlugin
 from LSP.plugin import LspTextCommand
 from LSP.plugin import OnPreStartContext
@@ -10,11 +11,8 @@ from LSP.plugin import Promise
 from LSP.plugin import Request
 from LSP.plugin import ServerResponse
 from LSP.plugin import Session
+from LSP.plugin import text_document_position_params
 from LSP.plugin import uri_handler
-from LSP.plugin.core.registry import get_position
-from LSP.plugin.core.views import get_symbol_kind_from_scope
-from LSP.plugin.core.views import text_document_position_params
-from LSP.plugin.locationpicker import LocationPicker
 from LSP.protocol import DocumentUri
 from LSP.protocol import Hover
 from LSP.protocol import HoverParams
@@ -159,7 +157,9 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         group: int = -1,
         fallback: bool = True,
     ) -> None:
-        position = get_position(self.view, event, point)
+        if point is None and event and 'x' in event and 'y' in event:
+            point = self.view.window_to_text((event['x'], event['y']))
+        position = point if point is not None else next((r.b for r in self.view.sel()), None)
         session = self.best_session(SOURCE_DEFINITION_CAPABILITY, position)
         if session is None or position is None:
             self._fallback(fallback, side_by_side, force_group, group)
@@ -207,9 +207,8 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
             })
             return
         placeholder = 'Source definitions of ' + self.view.substr(self.view.word(position))
-        kind = get_symbol_kind_from_scope(self.view.scope_name(position))
         sublime.set_timeout(
-            partial(LocationPicker, self.view, session, locations, side_by_side, force_group, group, placeholder, kind)
+            partial(LocationPicker, self.view, session, locations, side_by_side, force_group, group, placeholder)
         )
 
     def _fallback(self, fallback: bool, side_by_side: bool, force_group: bool, group: int) -> None:
