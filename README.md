@@ -24,8 +24,7 @@ Open the configuration file using the Command Palette `Preferences: LSP-tsgo Set
     "command": "lsp_tsgo_goto_source_definition",
     "args": {"fallback": true},
     "context": [
-        {"key": "lsp.session_with_capability", "operand": "definitionProvider"},
-        {"key": "selector", "operator": "equal", "operand": "source.js, source.jsx, source.ts, source.tsx"}
+        {"key": "lsp.session_with_name", "operand": "LSP-tsgo"}
     ]
 }
 ```
