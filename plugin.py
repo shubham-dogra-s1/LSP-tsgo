@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from functools import partial
 from LSP.plugin import ClientRequest
+from LSP.plugin import Error
 from LSP.plugin import LspPlugin
 from LSP.plugin import LspTextCommand
 from LSP.plugin import OnPreStartContext
@@ -158,21 +158,19 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         request: Request[Any, Location | list[Location] | list[LocationLink] | None] = Request(
             self.SOURCE_DEFINITION_METHOD, params, self.view, progress=True
         )
-        session.send_request(
-            request,
-            partial(self._on_result_async, session, params, fallback),
-            lambda _error: self._fallback(fallback),
-        )
+        session.send_request_task(request) \
+            .then(lambda response: self._on_result_async(session, params, fallback, response))
 
     def _on_result_async(
         self,
         session: Session,
         params: TextDocumentPositionParams,
         fallback: bool,
-        response: Location | list[Location] | list[LocationLink] | None,
+        response: Location | list[Location] | list[LocationLink] | Error | None,
     ) -> None:
-        if not response:
+        if not response or isinstance(response, Error):
             self._fallback(fallback)
+            return
         locations = response if isinstance(response, list) else [response]
         # Handled by LSP itself: opens a single location directly, or shows the location picker.
         session.execute_command({
