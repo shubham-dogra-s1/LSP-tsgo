@@ -129,12 +129,6 @@ class VerbosityHoverHandler:
             view.run_command('lsp_hover', {'point': point})
 
 
-# tsgo's "Go to Source Definition": resolves a declaration in a .d.ts to the .js (or, through a
-# declaration map, the .ts) it was generated from. It is a custom request rather than a standard one,
-# the same the VS Code extension for tsgo sends, and the server announces it in its experimental
-# capabilities.
-SOURCE_DEFINITION_METHOD = 'custom/textDocument/sourceDefinition'
-SOURCE_DEFINITION_CAPABILITY = 'experimental.customSourceDefinitionProvider'
 
 
 class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
@@ -145,6 +139,9 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
     the request. The command is then always safe to bind in place of `lsp_symbol_definition`.
     """
 
+    SOURCE_DEFINITION_METHOD = 'custom/textDocument/sourceDefinition'
+    SOURCE_DEFINITION_CAPABILITY = 'experimental.customSourceDefinitionProvider'
+
     capability = 'definitionProvider'
 
     def run(
@@ -153,13 +150,13 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         if point is None and event and 'x' in event and 'y' in event:
             point = self.view.window_to_text((event['x'], event['y']))
         position = point if point is not None else next((r.b for r in self.view.sel()), None)
-        session = self.best_session(SOURCE_DEFINITION_CAPABILITY, position)
+        session = self.best_session(self.SOURCE_DEFINITION_CAPABILITY, position)
         if session is None or position is None:
             self._fallback(fallback)
             return
         params = text_document_position_params(self.view, position)
         request: Request[Any, Location | list[Location] | list[LocationLink] | None] = Request(
-            SOURCE_DEFINITION_METHOD, params, self.view, progress=True
+            self.SOURCE_DEFINITION_METHOD, params, self.view, progress=True
         )
         session.send_request(
             request,
