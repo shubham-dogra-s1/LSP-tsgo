@@ -186,9 +186,3 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
             sublime.status_message('No source definition found')
             return
         self.view.run_command('lsp_symbol_definition', {'fallback': True})
-
-
-def to_location(location: Location | LocationLink) -> Location:
-    if 'targetUri' in location:
-        return {'uri': location['targetUri'], 'range': location['targetSelectionRange']}
-    return location
