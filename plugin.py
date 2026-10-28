@@ -172,12 +172,9 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
         fallback: bool,
         response: Location | list[Location] | list[LocationLink] | None,
     ) -> None:
-        if isinstance(response, dict):
-            response = [response]
-        locations = [to_location(location) for location in response or []]
-        if not locations:
+        if not response:
             self._fallback(fallback)
-            return
+        locations = response if isinstance(response, list) else [response]
         # Handled by LSP itself: opens a single location directly, or shows the location picker.
         session.execute_command({
             'command': 'editor.action.showReferences',
