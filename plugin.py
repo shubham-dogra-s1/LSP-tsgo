@@ -147,7 +147,9 @@ class LspTsgoGotoSourceDefinitionCommand(LspTextCommand):
 
     capability = 'definitionProvider'
 
-    def run(self, _: sublime.Edit, event: dict | None = None, point: int | None = None, fallback: bool = True) -> None:
+    def run(
+        self, _: sublime.Edit, event: dict[str, int] | None = None, point: int | None = None, fallback: bool = True
+    ) -> None:
         if point is None and event and 'x' in event and 'y' in event:
             point = self.view.window_to_text((event['x'], event['y']))
         position = point if point is not None else next((r.b for r in self.view.sel()), None)
